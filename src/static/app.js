@@ -472,6 +472,84 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Build the link that points to a single activity
+  function getActivityUrl(name) {
+    return `${window.location.origin}${window.location.pathname}#activity=${encodeURIComponent(name)}`;
+  }
+
+  // Build the share links for an activity (all values are URL-encoded)
+  function getShareLinks(name, description) {
+    const url = getActivityUrl(name);
+    const text = `Check out ${name} at Mergington High School: ${description}`;
+    const u = encodeURIComponent(url);
+    const t = encodeURIComponent(text);
+    return [
+      { id: "facebook", label: "Facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${t}` },
+      { id: "twitter", label: "X (Twitter)", href: `https://twitter.com/intent/tweet?text=${t}&url=${u}` },
+      { id: "linkedin", label: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${u}` },
+      { id: "whatsapp", label: "WhatsApp", href: `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}` },
+      { id: "email", label: "Email", href: `mailto:?subject=${encodeURIComponent(name)}&body=${encodeURIComponent(`${text}\n\n${url}`)}`, external: false },
+    ];
+  }
+
+  // Create the share section for an activity card
+  function createShareSection(name, description) {
+    const section = document.createElement("div");
+    section.className = "share-section";
+    section.setAttribute("role", "group");
+    section.setAttribute("aria-label", `Share ${name}`);
+
+    getShareLinks(name, description).forEach((link) => {
+      const a = document.createElement("a");
+      a.className = `share-button share-${link.id}`;
+      a.href = link.href;
+      a.textContent = link.label;
+      a.setAttribute("aria-label", `Share ${name} on ${link.label}`);
+      if (link.external !== false) {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      }
+      section.appendChild(a);
+    });
+
+    const shareText = `Check out ${name} at Mergington High School: ${description}`;
+    const shareUrl = getActivityUrl(name);
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "share-button share-copy";
+    copyButton.textContent = "Copy link";
+    copyButton.setAttribute("aria-label", `Copy link to ${name}`);
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        copyButton.textContent = "Copied!";
+        copyButton.classList.add("copied");
+      } catch (error) {
+        copyButton.textContent = "Copy failed";
+      }
+      setTimeout(() => {
+        copyButton.textContent = "Copy link";
+        copyButton.classList.remove("copied");
+      }, 2000);
+    });
+    section.appendChild(copyButton);
+
+    if (navigator.share) {
+      const nativeButton = document.createElement("button");
+      nativeButton.type = "button";
+      nativeButton.className = "share-button share-native";
+      nativeButton.textContent = "Share…";
+      nativeButton.setAttribute("aria-label", `Share ${name} using your device`);
+      nativeButton.addEventListener("click", () => {
+        navigator.share({ title: name, text: shareText, url: shareUrl }).catch(() => {});
+      });
+      section.appendChild(nativeButton);
+    }
+
+    return section;
+  }
+
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
@@ -570,6 +648,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       </div>
     `;
+
+    activityCard.insertBefore(
+      createShareSection(name, details.description),
+      activityCard.querySelector(".activity-card-actions")
+    );
 
     // Add click handlers for delete buttons
     const deleteButtons = activityCard.querySelectorAll(".delete-participant");
@@ -860,6 +943,17 @@ document.addEventListener("DOMContentLoaded", () => {
     setDayFilter,
     setTimeRangeFilter,
   };
+
+  // Open a shared activity link by searching for that activity
+  const sharedMatch = window.location.hash.match(/^#activity=(.+)$/);
+  if (sharedMatch) {
+    try {
+      searchQuery = decodeURIComponent(sharedMatch[1]);
+      searchInput.value = searchQuery;
+    } catch (error) {
+      searchQuery = "";
+    }
+  }
 
   // Initialize app
   checkAuthentication();
